@@ -6,7 +6,6 @@ use crate::db::init_db;
 use anyhow::Result;
 use axum::{Extension, Router};
 use sqlx::SqlitePool;
-use std::net::SocketAddr;
 
 /// Build the overall web service router.
 /// Constructing the router in a function makes it easy to re-use in unit tests.
@@ -16,7 +15,7 @@ fn router(connection_pool: SqlitePool) -> Router {
         // "/" inside the service will be "/books" to the outside world.
         .nest_service("/books", rest::books_service())
         // Add the web view
-        .nest_service("/", view::view_service())
+        .merge(view::view_service())
         // Add the connection pool as a "layer", available for dependency injection.
         .layer(Extension(connection_pool))
 }
@@ -33,12 +32,10 @@ async fn main() -> Result<()> {
     let app = router(connection_pool);
 
     // Define the address to listen on (everything)
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3001").await.unwrap();
 
     // Start the server
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
